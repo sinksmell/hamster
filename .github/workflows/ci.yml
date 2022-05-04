@@ -1,0 +1,50 @@
+name: unittest
+
+on:
+  push:
+    branches: ['master','develop', 'feature/**']
+  pull_request:
+    branches: [ master ]
+
+jobs:
+
+  unittest:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        mongodb-version: ['4.2', '4.4', '5.0']
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Go
+      uses: actions/setup-go@v3
+      with:
+        go-version: 1.18
+
+    - name: Start MongoDB
+      uses: supercharge/mongodb-github-action@1.7.0
+      with:
+        mongodb-version: ${{ matrix.mongodb-version }}
+
+    - name: Download MongoDB Sample Data    
+      run: wget https://github.com/sinksmell/mongodb-sample-dataset/raw/main/sample_mflix/movies.json
+
+    - name: Import MongoDB Sample Data
+      run: mongoimport --drop -c movies -d sample_mflix --uri "mongodb://127.0.0.1:27017" movies.json
+     
+    - name: Test
+      run: go test -v ./...
+
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Go
+      uses: actions/setup-go@v3
+      with:
+        go-version: 1.18
+
+    - name: Build
+      run: go build -v ./...
