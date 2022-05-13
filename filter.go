@@ -48,6 +48,10 @@ func (f *filterDoc) UnmarshalBSON(data []byte) error {
 	return bson.Unmarshal(data, &f.Filters)
 }
 
+func (f filterDocBuilder) Doc() filterDoc {
+	return builder.GetStruct(f).(filterDoc)
+}
+
 func (f filterDocBuilder) Eq(fieldName string, value interface{}) filterDocBuilder {
 	return builder.Append(f, "Filters", bson.E{Key: fieldName, Value: value}).(filterDocBuilder)
 }
@@ -89,10 +93,6 @@ func (f filterDocBuilder) Nin(fieldName string, value interface{}) filterDocBuil
 
 func (f filterDocBuilder) Empty() filterDocBuilder {
 	return builder.Set(f, "Filters", bson.D{}).(filterDocBuilder)
-}
-
-func (f filterDocBuilder) Doc() filterDoc {
-	return builder.GetStruct(f).(filterDoc)
 }
 
 func (f filterDocBuilder) And(filters ...filterDoc) filterDocBuilder {
