@@ -1,51 +1,42 @@
-name: unittest
+name: CI
 
 on:
   push:
-    branches: ['master','develop', 'feature/**']
+    branches:
+      - main
+      - master
+      - feat
+      - 'feature/**'
   pull_request:
-    branches: [ master ]
 
 jobs:
-
-  unittest:
+  test:
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     strategy:
+      fail-fast: false
       matrix:
-        mongodb-version: ['4.2', '4.4', '5.0']
+        go-version: ['1.20', '1.22']
+
     steps:
-    - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v3
-      with:
-        go-version: 1.18
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache: true
 
-    - name: Start MongoDB
-      uses: supercharge/mongodb-github-action@1.7.0
-      with:
-        mongodb-version: ${{ matrix.mongodb-version }}
+      - name: Verify formatting
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "The following files are not gofmt-formatted:"
+            echo "$unformatted"
+            exit 1
+          fi
 
-    - name: Download MongoDB Sample Data    
-      run: wget https://github.com/sinksmell/mongodb-sample-dataset/raw/main/sample_mflix/movies.json
-
-    - name: Import MongoDB Sample Data
-      run: mongoimport --drop -c movies -d sample_mflix --uri "mongodb://127.0.0.1:27017" movies.json
-     
-    - name: Test
-      run: go test -v ./...
-
-
-  build:
-    needs: unittest
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v3
-
-    - name: Set up Go
-      uses: actions/setup-go@v3
-      with:
-        go-version: 1.18
-
-    - name: Build
-      run: go build -v ./...
+      - name: Run tests
+        run: go test ./...
