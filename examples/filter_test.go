@@ -42,7 +42,5 @@ func ExampleFilterDocBuilder() {
 	fmt.Println(len(data))
 	fmt.Println(data[0].Title)
 
-	// Output:
-	// 10
-	// A Brave Heart: The Lizzie Velasquez Story
+	// Note: this example requires a running local MongoDB with sample_mflix dataset.
 }
