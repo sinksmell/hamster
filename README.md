@@ -1,58 +1,114 @@
-# Hamster - fluent MQL generator for Go
-## Hamster is in evolution.
+# Hamster
+
+A fluent **MongoDB Query (MQL) builder** for Go.
+
+Hamster helps you write MongoDB queries with chainable methods, while still producing standard BSON docs used by the official Go driver.
+
+> Status: evolving project, APIs may continue to expand.
+
+## Why Hamster
+
+- Write readable, chainable query code.
+- Reduce manual BSON nesting mistakes.
+- Keep full compatibility with `go.mongodb.org/mongo-driver`.
+- Easy for AI assistants to generate/modify because APIs are explicit and composable.
 
 Inspired by:
 - [squirrel](https://github.com/Masterminds/squirrel)
 - [mongodb-driver-java](https://github.com/mongodb/mongo-java-driver)
 
-MQL Builder TODO:
-- [x] Filter Builder
-- [x] Sort Builder
-- [x] Projection Builder
-- [x] Update Builder
-- [x] Aggregate Builder
-- [x] Index Builder
+## Features
 
-## Usage
+- [x] Filter Builder (`FilterDocBuilder`)
+- [x] Sort Builder (`SortDocBuilder`)
+- [x] Projection Builder (`ProjectDocBuilder`)
+- [x] Update Builder (`UpdateDocBuilder`)
+- [x] Aggregate Builder (`AggregateDocBuilder`)
+- [x] Index Builder (`IndexDocBuilder`)
 
-### Filter & Sort
-[Official-Filters-Builder](https://www.mongodb.com/docs/drivers/java/sync/v4.6/fundamentals/builders/filters/#std-label-filters-builders)
+---
+
+## Quick Start (for beginners)
+
+### 1) Install
+
+```bash
+go get github.com/sinksmell/hamster
+```
+
+### 2) Basic Find Query (Filter + Sort + Projection)
 
 ```go
-import "github.com/sinksmell/hamster"
+import (
+	"context"
+	"time"
 
-ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-defer cancel()
-client, err := mongo.Connect(ctx, options.Client().ApplyURI("mongodb://127.0.0.1:27017"))
-if err != nil {
-	fmt.Println(err)
-	return
-}
+	"github.com/sinksmell/hamster"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+)
 
-opt := options.Find()
-filter := hamster.FilterDocBuilder.Gt("year", 2000).Type("imdb.rating", bsontype.Double.String()).Doc()
-sort := hamster.SortDocBuilder.OrderBy("year", hamster.SortDesc).OrderDescBy("imdb.rating").Doc()
-opt.SetSort(sort)
-opt.SetLimit(10)
-cursor, err := client.Database("sample_mflix").Collection("movies").Find(ctx, filter, opt)
-if err != nil {
-	fmt.Println(err)
-	return
-}
+func findMovies(ctx context.Context, db *mongo.Database) error {
+	filter := hamster.FilterDocBuilder.
+		Gt("year", 2000).
+		Doc()
 
-type movie struct {
-	Title string `bson:"title"`
-	Year  int    `bson:"year"`
+	sort := hamster.SortDocBuilder.
+		OrderDescBy("imdb.rating").
+		Doc()
+
+	projection := hamster.ProjectDocBuilder.
+		Include("title", "year", "imdb.rating").
+		ExcludeId().
+		Doc()
+
+	opts := options.Find().
+		SetSort(sort).
+		SetProjection(projection).
+		SetLimit(10)
+
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	cursor, err := db.Collection("movies").Find(ctx, filter, opts)
+	if err != nil {
+		return err
+	}
+	defer cursor.Close(ctx)
+	return nil
 }
-var data []movie
-defer cursor.Close(context.TODO())
+```
+
+---
+
+## Core Usage Patterns
+
+### Filter
+
+```go
+filter := hamster.FilterDocBuilder.
+	Eq("status", "A").
+	Gt("qty", 30).
+	In("category", []string{"book", "electronics"}).
+	Doc()
+```
+
+### Sort
+
+```go
+sort := hamster.SortDocBuilder.
+	OrderAscBy("year").
+	OrderDescBy("imdb.rating").
+	Doc()
 ```
 
 ### Projection
 
 ```go
-projection := hamster.ProjectDocBuilder.Include("title", "year").ExcludeId().Doc()
-opt := options.Find().SetProjection(projection)
+projection := hamster.ProjectDocBuilder.
+	Include("title", "year").
+	ExcludeId().
+	Doc()
 ```
 
 ### Update
@@ -64,10 +120,10 @@ update := hamster.UpdateDocBuilder.
 	CurrentDate("updated_at").
 	Doc()
 
-_, err = collection.UpdateOne(ctx, hamster.FilterDocBuilder.Eq("_id", id).Doc(), update)
+_, err := collection.UpdateOne(ctx, hamster.FilterDocBuilder.Eq("_id", id).Doc(), update)
 ```
 
-### Aggregate
+### Aggregate Pipeline
 
 ```go
 pipeline := hamster.AggregateDocBuilder.
@@ -77,22 +133,59 @@ pipeline := hamster.AggregateDocBuilder.
 	Doc().ToA()
 
 cursor, err := collection.Aggregate(ctx, pipeline)
+_ = cursor
+_ = err
 ```
 
 ### Index
 
 ```go
-index := hamster.IndexDocBuilder.
+indexModel := hamster.IndexDocBuilder.
 	Asc("email").
 	Desc("created_at").
 	Unique().
 	Name("email_created_idx").
 	Doc().ToModel()
 
-_, err = collection.Indexes().CreateOne(ctx, index)
+_, err := collection.Indexes().CreateOne(ctx, indexModel)
+_ = err
 ```
+
+---
+
+## API Mapping Cheat Sheet
+
+- `Doc()` returns Hamster's wrapper value.
+- `ToD()` converts to `bson.D` (ordered document).
+- `ToM()` converts to `bson.M` (map document, for non-ordered use cases).
+- `ToA()` (aggregate) converts to `bson.A` pipeline.
+- `ToModel()` (index) converts to `mongo.IndexModel`.
+
+---
+
+## AI-Friendly Prompt Templates
+
+If you use AI coding tools, these prompts usually work well:
+
+1. **Generate query builder code**
+   - "Use Hamster builders to create a MongoDB find query: status='A', qty>30, sort by created_at desc, project name and qty."
+2. **Refactor raw BSON to Hamster**
+   - "Convert this raw `bson.D` query into Hamster chainable builders."
+3. **Add test cases**
+   - "Write Go tests to assert the BSON generated by Hamster `UpdateDocBuilder` includes `$set` and `$inc`."
+
+Tips for AI:
+- Mention expected output shape (`bson.D`, `bson.A`, `mongo.IndexModel`).
+- Ask AI to keep chained calls one-per-line for easier diff review.
+- Ask AI to include `Doc()` at the end of every builder chain.
+
+---
+
+## Notes
+
+- Hamster builds query documents; execution is still handled by the official MongoDB Go driver.
+- Some examples assume you already have a running MongoDB and appropriate dataset.
 
 ## License
 
-Hamster is released under the
-[Apache License]( http://www.apache.org/licenses/).
+Hamster is released under the [Apache License](http://www.apache.org/licenses/).
