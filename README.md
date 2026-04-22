@@ -1,7 +1,3 @@
----
-render_with_liquid: false
----
-
 # Hamster
 
 A fluent **MongoDB Query (MQL) builder** for Go.
